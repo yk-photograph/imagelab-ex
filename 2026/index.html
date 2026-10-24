@@ -13,7 +13,7 @@ body { color: #222222; font-family: "Segoe UI", "Helvetica Neue", Arial, "Yu Got
 a { color: inherit; text-decoration: none; }
 #page { position: relative; width: 100%; overflow: hidden; }
 .abs { position: absolute; }
-.ph { position: absolute; display: block; border: 0; background: #eeeeee; }
+.ph { position: absolute; display: block; border: 0; }
 .light { font-family: "Segoe UI Light", "Helvetica Neue", "Helvetica", Arial, "Yu Gothic", YuGothic, Meiryo, sans-serif; font-weight: 300; }
 .label { color: #999999; letter-spacing: 0.18em; text-transform: uppercase; }
 .rule { position: absolute; height: 1px; background: #e2e2e2; overflow: hidden; }
@@ -54,7 +54,7 @@ a { color: inherit; text-decoration: none; }
 <script type="text/javascript">
 (function () {
   var D = window.EXHIBITION, P = D.people, page = document.getElementById('page');
-  var tops = [], idxTop = 0, lazy = [], HDR = 44;
+  var tops = [], idxTop = 0, lazy = [], HDR = 44, MOBILE = false;
 
   function esc(s) { return String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;'); }
   function px(v) { return Math.round(v) + 'px'; }
@@ -103,13 +103,14 @@ a { color: inherit; text-decoration: none; }
     return { items: out, w: W, h: tot };
   }
 
+  // まず軽いサムネイルを表示し、近づいたら高画質版に差し替える（空白にならない）
   function imgsHtml(imgs, x0, y0, W, H, gap, thumb, eager) {
     var L = layout(imgs, W, H, gap), s = '', i;
     for (i = 0; i < L.items.length; i++) {
-      var it = L.items[i], src = thumb ? it.img.t : it.img.f;
+      var it = L.items[i];
       var id = 'im' + lazy.length;
-      lazy.push({ id: id, src: src, y: y0 + it.y, done: false });
-      s += '<img class="ph" id="' + id + '" alt="" ' + (eager ? 'src="' + esc(src) + '" ' : '') +
+      if (!thumb) { lazy.push({ id: id, src: (MOBILE && it.img.m) ? it.img.m : it.img.f, done: false }); }
+      s += '<img class="ph" id="' + id + '" alt="" src="' + esc(it.img.t) + '" ' +
            'style="left:' + px(x0 + it.x) + ';top:' + px(y0 + it.y) + ';width:' + px(it.w) + ';height:' + px(it.h) + '">';
     }
     return s;
@@ -148,6 +149,7 @@ a { color: inherit; text-decoration: none; }
   function render(keepIndex) {
     var vp = viewport(), W = vp.w, H = Math.max(vp.h - HDR, 520);
     var mobile = W < 760 || W / vp.h < 0.9;
+    MOBILE = mobile;
     if (mobile) { H = 640; }
     var padX = mobile ? 18 : Math.max(24, W * 0.06), inner = W - padX * 2, y = HDR, s = '', i;
     lazy = []; tops = [];
@@ -176,8 +178,6 @@ a { color: inherit; text-decoration: none; }
       s += '<div class="cell" data-i="' + i + '" style="left:' + px(x0) + ';top:' + px(y0) + ';width:' + px(bw) + ';height:' + px(thumbH + capH) + '">';
       s += imgsHtml(P[i].imgs, 0, 0, bw, thumbH, 2, true, false);
       s += '<div class="cap" style="top:' + px(thumbH + capH * 0.18) + ';font-size:' + px(Math.min(15, Math.max(11, cw * 0.075))) + '"><span>' + pad2(i + 1) + '</span>' + esc(P[i].n) + '</div></div>';
-      // サムネイルの遅延読み込み位置はセル基準なので補正
-      for (var q = lazy.length - P[i].imgs.length; q < lazy.length; q++) { lazy[q].y += y0; }
     }
     y += Math.ceil(P.length / cols) * (thumbH + capH + gapC * 0.6) + H * 0.08;
 
@@ -268,15 +268,21 @@ a { color: inherit; text-decoration: none; }
     }
   }
 
+  function upgrade(el, src) {
+    var im = new Image();
+    im.onload = function () { el.src = src; };
+    im.src = src;
+  }
+
   function loadVisible() {
-    var top = scrollY() - 400, bot = scrollY() + viewport().h * 2.2, i;
+    var vh = viewport().h, top = scrollY() - vh, bot = scrollY() + vh * 3, i;
     for (i = 0; i < lazy.length; i++) {
       var L = lazy[i];
       if (L.done) { continue; }
       var el = document.getElementById(L.id);
       if (!el) { L.done = true; continue; }
       var ey = el.getBoundingClientRect().top + scrollY();
-      if (ey > top - 1200 && ey < bot) { el.src = L.src; L.done = true; }
+      if (ey > top && ey < bot) { upgrade(el, L.src); L.done = true; }
     }
     var cur = currentIndex(), c = document.getElementById('cnt');
     c.innerHTML = cur >= 0 ? pad2(cur + 1) + ' / ' + pad2(P.length) : '';
