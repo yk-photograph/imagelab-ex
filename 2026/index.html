@@ -54,7 +54,7 @@ a { color: inherit; text-decoration: none; }
 <script type="text/javascript">
 (function () {
   var D = window.EXHIBITION, P = D.people, page = document.getElementById('page');
-  var tops = [], idxTop = 0, lazy = [], HDR = 44, MOBILE = false;
+  var tops = [], idxTop = 0, lazy = [], HDR = 44, MOBILE = false, stableH = 0, lastW = 0, lastH = 0;
 
   function esc(s) { return String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;'); }
   function px(v) { return Math.round(v) + 'px'; }
@@ -150,6 +150,8 @@ a { color: inherit; text-decoration: none; }
     var vp = viewport(), W = vp.w, H = Math.max(vp.h - HDR, 520);
     var mobile = W < 760 || W / vp.h < 0.9;
     MOBILE = mobile;
+    stableH = Math.max(stableH, vp.h);
+    lastW = W; lastH = vp.h;
     if (mobile) { H = 640; }
     var padX = mobile ? 18 : Math.max(24, W * 0.06), inner = W - padX * 2, y = HDR, s = '', i;
     lazy = []; tops = [];
@@ -185,7 +187,7 @@ a { color: inherit; text-decoration: none; }
     var side = 0, flow = '';
     if (mobile) {
       for (i = 0; i < P.length; i++) {
-        var mp = P[i], ML = layout(mp.imgs, inner, vp.h * 0.6, 6);
+        var mp = P[i], ML = layout(mp.imgs, inner, stableH * 0.6, 6);
         flow += '<div class="msec" id="sec' + i + '" style="padding:28px ' + px(padX) + ' 40px">' +
           '<div class="mph" style="height:' + px(ML.h) + '">' + imgsHtml(mp.imgs, 0, 0, inner, ML.h, 6, false, false) + '</div>' +
           '<div style="margin-top:22px">' + nameHtml(mp, i, 560) + '<span class="bar" style="margin:16px 0"></span>' +
@@ -295,6 +297,12 @@ a { color: inherit; text-decoration: none; }
   }
 
   var anim = null;
+  function stopAnim() { if (anim) { clearInterval(anim); anim = null; } }
+  if (document.addEventListener) {
+    document.addEventListener('touchstart', stopAnim, false);
+    document.addEventListener('wheel', stopAnim, false);
+  }
+  document.onmousewheel = stopAnim;
   function goTo(target) {
     target = Math.max(0, target - HDR);
     if (anim) { clearInterval(anim); }
@@ -335,6 +343,9 @@ a { color: inherit; text-decoration: none; }
   window.onresize = function () {
     if (rt) { clearTimeout(rt); }
     rt = setTimeout(function () {
+      var vp = viewport();
+      // スマホのアドレスバーの伸び縮み（高さだけの変化）では作り直さない
+      if (vp.w === lastW && (MOBILE || Math.abs(vp.h - lastH) < 120)) { return; }
       var cur = currentIndex(); render();
       if (cur >= 0) { window.scrollTo(0, tops[cur] - HDR); loadVisible(); }
     }, 200);
